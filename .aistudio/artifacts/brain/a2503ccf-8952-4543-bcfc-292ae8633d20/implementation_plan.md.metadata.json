@@ -1,0 +1,6 @@
+{
+  "summary": "Архитектура и детальный план реализации Модуля 6 «Строительная библиотека нормативов (Construction Standards Library)» для BuildAI KZ: схемы БД, хранилище PDF и полнотекстового индекса, PDF Viewer, интеграция с Normative AI, администрирование и план развертывания без нарушения совместимости с Vercel.",
+  "updatedAt": "2026-11-04T16:17:06.137315573Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

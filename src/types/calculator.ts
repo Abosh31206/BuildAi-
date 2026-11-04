@@ -1,8 +1,26 @@
 export type Language = 'ru' | 'kk';
 
-export type CalculatorId = 'concrete' | 'rebar' | 'foundation' | 'earthwork' | 'masonry';
+export type CalculatorId =
+  | 'concrete'
+  | 'rebar'
+  | 'foundation'
+  | 'earthwork'
+  | 'masonry'
+  | 'plaster'
+  | 'roofing'
+  | 'screed'
+  | 'insulation'
+  | 'painting';
 
-export type CalculatorCategory = 'all' | 'concrete_works' | 'reinforcement' | 'foundations' | 'earthworks' | 'masonry';
+export type CalculatorCategory =
+  | 'all'
+  | 'concrete_works'
+  | 'reinforcement'
+  | 'foundations'
+  | 'earthworks'
+  | 'masonry'
+  | 'finishing'
+  | 'roofing_insulation';
 
 export interface CalculationHistoryItem {
   id: string;
@@ -99,11 +117,11 @@ export interface EarthworkResult {
 export interface MasonryInputs {
   wallLength: number; // m
   wallHeight: number; // m
-  wallThickness: number; // m (e.g. 0.12, 0.25, 0.38, 0.51, 0.64)
+  wallThickness: number; // m
   brickLength: number; // mm
   brickWidth: number; // mm
   brickHeight: number; // mm
-  mortarJoint: number; // mm (10-12 mm)
+  mortarJoint: number; // mm
   openingsArea: number; // m²
   wastePercent: number; // %
 }
@@ -120,3 +138,113 @@ export interface MasonryResult {
   formulaSubstituted: string;
   isApproximate: boolean;
 }
+
+// 6. Plaster
+export interface PlasterInputs {
+  wallLength: number; // m
+  wallHeight: number; // m
+  openingsArea: number; // m²
+  layerThicknessMm: number; // mm (layer thickness)
+  mixType: 'gypsum' | 'cement' | 'facade';
+  bagWeightKg: number; // 25, 30, 50 kg
+  wastePercent: number; // %
+}
+
+export interface PlasterResult {
+  grossArea: number; // m²
+  netArea: number; // m²
+  totalWeightKg: number; // kg
+  totalBags: number; // bags
+  primerLiters: number; // liters
+  beaconProfilesMeters: number; // m
+  formula: string;
+  formulaSubstituted: string;
+}
+
+// 7. Roofing
+export interface RoofingInputs {
+  roofType: 'single' | 'gable' | 'hip' | 'flat';
+  buildingLength: number; // m
+  buildingWidth: number; // m
+  slopeAngleDeg: number; // degrees
+  overhangMeters: number; // m (eave overhang)
+  materialType: 'metal_tile' | 'corrugated' | 'soft_shingle' | 'roll_membrane';
+  wastePercent: number; // %
+}
+
+export interface RoofingResult {
+  projectionArea: number; // m²
+  actualSlopeArea: number; // m²
+  totalAreaWithWaste: number; // m²
+  ridgeLengthMeters: number; // m (конек)
+  eavesLengthMeters: number; // m (карниз)
+  membraneRolls: number; // rolls (75 m² per roll standard)
+  screwsPcs: number; // fastening screws (~8 pcs/m²)
+  formula: string;
+  formulaSubstituted: string;
+}
+
+// 8. Floor Screed
+export interface ScreedInputs {
+  roomLength: number; // m
+  roomWidth: number; // m
+  screedThicknessMm: number; // mm (e.g. 50 mm)
+  screedType: 'cement_sand' | 'semi_dry' | 'self_leveling';
+  bagWeightKg: number; // 25 or 50 kg
+  reservePercent: number; // %
+}
+
+export interface ScreedResult {
+  area: number; // m²
+  volumeM3: number; // m³
+  totalDryMixKg: number; // kg
+  bagsCount: number; // pcs
+  damperTapeMeters: number; // m (perimeter)
+  reinforcingMeshM2: number; // m²
+  fiberKg: number; // kg
+  formula: string;
+  formulaSubstituted: string;
+}
+
+// 9. Thermal Insulation
+export interface InsulationInputs {
+  insulationArea: number; // m²
+  cityRegion: string; // e.g. 'astana', 'almaty', 'shymkent', etc.
+  constructionType: 'facade' | 'roof' | 'floor';
+  materialType: 'mineral_wool' | 'xps' | 'eps' | 'pir';
+  wastePercent: number; // %
+}
+
+export interface InsulationResult {
+  requiredR: number; // m²·°C/W (СП РК 2.04-01-2017)
+  thermalConductivity: number; // W/(m·°C)
+  recommendedThicknessMm: number; // mm
+  standardThicknessMm: number; // 50, 100, 150, 200 mm
+  totalVolumeM3: number; // m³
+  packagesCount: number; // packs
+  dowelsCount: number; // pieces (тарельчатые дюбели)
+  vaporBarrierM2: number; // m²
+  formula: string;
+  formulaSubstituted: string;
+}
+
+// 10. Painting
+export interface PaintingInputs {
+  surfaceArea: number; // m²
+  layersCount: number; // 1, 2, 3
+  paintType: 'acrylic' | 'latex' | 'silicone' | 'enamel';
+  surfaceType: 'smooth' | 'rough' | 'drywall' | 'wood';
+  canSizeLiters: number; // 2.5, 5, 10, 14 L
+  reservePercent: number; // %
+}
+
+export interface PaintingResult {
+  totalPaintLiters: number; // L
+  totalPaintKg: number; // kg
+  cansCount: number; // cans
+  primerLiters: number; // L
+  maskingTapeMeters: number; // m
+  formula: string;
+  formulaSubstituted: string;
+}
+

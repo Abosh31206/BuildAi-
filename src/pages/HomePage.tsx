@@ -6,6 +6,11 @@ import { RebarCalculator } from '../calculators/RebarCalculator';
 import { FoundationCalculator } from '../calculators/FoundationCalculator';
 import { EarthworkCalculator } from '../calculators/EarthworkCalculator';
 import { MasonryCalculator } from '../calculators/MasonryCalculator';
+import { PlasterCalculator } from '../calculators/PlasterCalculator';
+import { RoofingCalculator } from '../calculators/RoofingCalculator';
+import { FloorScreedCalculator } from '../calculators/FloorScreedCalculator';
+import { InsulationCalculator } from '../calculators/InsulationCalculator';
+import { PaintingCalculator } from '../calculators/PaintingCalculator';
 import {
   Search,
   Layers,
@@ -17,6 +22,11 @@ import {
   Info,
   ArrowRight,
   Calculator,
+  Paintbrush,
+  Home,
+  Flame,
+  Wrench,
+  ThermometerSnowflake,
 } from 'lucide-react';
 
 interface HomePageProps {
@@ -96,6 +106,51 @@ export const HomePage: React.FC<HomePageProps> = ({
         normTag: t('calculatorCards.masonry.tag'),
         icon: Layers,
       },
+      {
+        id: 'plaster' as CalculatorId,
+        category: 'finishing' as CalculatorCategory,
+        title: t('calculatorCards.plaster.title'),
+        desc: t('calculatorCards.plaster.shortDesc'),
+        formula: t('calculatorCards.plaster.formula'),
+        normTag: t('calculatorCards.plaster.tag'),
+        icon: Wrench,
+      },
+      {
+        id: 'roofing' as CalculatorId,
+        category: 'roofing_insulation' as CalculatorCategory,
+        title: t('calculatorCards.roofing.title'),
+        desc: t('calculatorCards.roofing.shortDesc'),
+        formula: t('calculatorCards.roofing.formula'),
+        normTag: t('calculatorCards.roofing.tag'),
+        icon: Home,
+      },
+      {
+        id: 'screed' as CalculatorId,
+        category: 'concrete_works' as CalculatorCategory,
+        title: t('calculatorCards.screed.title'),
+        desc: t('calculatorCards.screed.shortDesc'),
+        formula: t('calculatorCards.screed.formula'),
+        normTag: t('calculatorCards.screed.tag'),
+        icon: Box,
+      },
+      {
+        id: 'insulation' as CalculatorId,
+        category: 'roofing_insulation' as CalculatorCategory,
+        title: t('calculatorCards.insulation.title'),
+        desc: t('calculatorCards.insulation.shortDesc'),
+        formula: t('calculatorCards.insulation.formula'),
+        normTag: t('calculatorCards.insulation.tag'),
+        icon: ThermometerSnowflake,
+      },
+      {
+        id: 'painting' as CalculatorId,
+        category: 'finishing' as CalculatorCategory,
+        title: t('calculatorCards.painting.title'),
+        desc: t('calculatorCards.painting.shortDesc'),
+        formula: t('calculatorCards.painting.formula'),
+        normTag: t('calculatorCards.painting.tag'),
+        icon: Paintbrush,
+      },
     ];
   }, [t]);
 
@@ -122,6 +177,8 @@ export const HomePage: React.FC<HomePageProps> = ({
     { id: 'foundations', label: t('categories.foundations') },
     { id: 'earthworks', label: t('categories.earthworks') },
     { id: 'masonry', label: t('categories.masonry') },
+    { id: 'finishing', label: t('categories.finishing') },
+    { id: 'roofing_insulation', label: t('categories.roofing_insulation') },
   ];
 
   return (
@@ -330,6 +387,41 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           {activeCalculator === 'masonry' && (
             <MasonryCalculator
+              onSaveHistory={onSaveHistory}
+              onPrintReport={onPrintReport}
+            />
+          )}
+
+          {activeCalculator === 'plaster' && (
+            <PlasterCalculator
+              onSaveHistory={onSaveHistory}
+              onPrintReport={onPrintReport}
+            />
+          )}
+
+          {activeCalculator === 'roofing' && (
+            <RoofingCalculator
+              onSaveHistory={onSaveHistory}
+              onPrintReport={onPrintReport}
+            />
+          )}
+
+          {activeCalculator === 'screed' && (
+            <FloorScreedCalculator
+              onSaveHistory={onSaveHistory}
+              onPrintReport={onPrintReport}
+            />
+          )}
+
+          {activeCalculator === 'insulation' && (
+            <InsulationCalculator
+              onSaveHistory={onSaveHistory}
+              onPrintReport={onPrintReport}
+            />
+          )}
+
+          {activeCalculator === 'painting' && (
+            <PaintingCalculator
               onSaveHistory={onSaveHistory}
               onPrintReport={onPrintReport}
             />
