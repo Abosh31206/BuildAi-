@@ -4,19 +4,47 @@ export type StandardStatus = 'ACTIVE' | 'REPLACED' | 'CANCELLED' | 'UNCONFIRMED'
 
 export type IndustryCategory =
   | 'ALL'
-  | 'STRUCTURES'      // Несущие конструкции, бетон, металл, дерево
-  | 'SEISMIC'         // Сейсмостойкое строительство
-  | 'FOUNDATIONS'     // Основания, фундаменты, геодезия
-  | 'CLIMATE_THERMAL' // Строительная климатология и теплотехника
-  | 'FINISHING'       // Отделочные работы, штукатурка, кровля, изоляция
-  | 'FIRE_SAFETY'     // Пожарная безопасность
-  | 'ENGINEERING_NETS'; // Инженерные сети (ОВ, ВК, электрика)
+  | 'STRUCTURES'
+  | 'SEISMIC'
+  | 'FOUNDATIONS'
+  | 'CLIMATE_THERMAL'
+  | 'FINISHING'
+  | 'FIRE_SAFETY'
+  | 'ENGINEERING_NETS';
 
 export type AccessRights = 'VIEW_AND_DOWNLOAD' | 'VIEW_ONLY' | 'OFFICIAL_LINK_ONLY';
 
+export type ProcessingStatus =
+  | 'READY'
+  | 'UPLOADING'
+  | 'VALIDATING'
+  | 'INDEXING_TEXT'
+  | 'OCR_PROCESSING'
+  | 'INCOMPLETE'
+  | 'CORRUPTED';
+
+export interface IntegrityReport {
+  expectedPages?: number;
+  actualPages: number;
+  firstPageVerified: boolean;
+  lastPageVerified: boolean;
+  isScanned: boolean;
+  ocrCompleted: boolean;
+  avgCharsPerPage: number;
+  verifiedAt: string;
+  notes?: string;
+}
+
+export interface StandardPageText {
+  pageNumber: number;
+  rawText: string;
+  ocrText?: string;
+  isScanned: boolean;
+}
+
 export interface DocumentClause {
   id: string;
-  clauseNumber: string; // e.g. "5.2.11"
+  clauseNumber: string;
   sectionTitle: string;
   contentRu: string;
   contentKk: string;
@@ -27,7 +55,7 @@ export interface DocumentSection {
   id: string;
   title: string;
   pageNumber: number;
-  level: number; // 1 = Section, 2 = Subsection
+  level: number;
   children?: DocumentSection[];
 }
 
@@ -35,20 +63,21 @@ export interface StandardRevision {
   revisionCode: string;
   approvedDate: string;
   effectiveDate: string;
-  orderNumber: string; // Номер приказа
+  orderNumber: string;
   note?: string;
 }
 
 export interface StandardsDoc {
   documentId: string;
+  ownerId?: string;
   documentType: StandardType;
-  documentNumber: string; // Официальный шифр (напр., "СП РК 5.03-107-2013")
+  documentNumber: string;
   officialTitleRu: string;
   officialTitleKk: string;
   language: 'ru' | 'kk' | 'both';
   publicationDate?: string;
   effectiveDate?: string;
-  revision: string; // Текущая подтвержденная редакция
+  revision: string;
   documentStatus: StandardStatus;
   replacedBy?: {
     documentId?: string;
@@ -56,18 +85,23 @@ export interface StandardsDoc {
     note?: string;
   };
   industryCategory: IndustryCategory;
-  sourceName: string; // e.g., "Комитет по делам строительства МПС РК"
-  sourceUrl: string; // Официальная ссылка на реестр
-  fileUrl?: string; // Прямая ссылка на PDF или локальный resource
-  fileFormat: 'PDF' | 'NONE';
+  sourceName: string;
+  sourceUrl: string;
+  fileUrl?: string;
+  fileStoragePath?: string;
+  fileFormat: 'PDF' | 'DOCX' | 'NONE';
   fileSizeBytes?: number;
+  checksumSha256?: string;
   accessRights: AccessRights;
-  lastVerifiedAt: string; // ISO дата последней проверки
+  processingStatus?: ProcessingStatus;
+  integrityReport?: IntegrityReport;
+  lastVerifiedAt: string;
   pageCount: number;
   clauses: DocumentClause[];
   sections: DocumentSection[];
   revisionsHistory?: StandardRevision[];
   searchableText?: string;
+  pages?: StandardPageText[];
 }
 
 export interface StandardsFilterState {

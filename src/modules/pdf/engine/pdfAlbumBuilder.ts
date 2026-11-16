@@ -254,94 +254,137 @@ export function generatePdfAlbum(data: ProjectAlbumData, language: 'ru' | 'kk' =
   doc.addPage();
   drawGostFrame(false, 3, 4);
 
+  const planData = data.activePlan;
   doc.setFontSize(11);
-  doc.text('ПЛАН ЭТАЖА НА ОТМ. +0.000 (М 1:100)', marginLeft + 10, marginTop + 12);
+  doc.text(
+    planData
+      ? `${planData.title.toUpperCase()} (М ${planData.scale})`
+      : 'ПЛАН ЭТАЖА НА ОТМ. +0.000 (М 1:100)',
+    marginLeft + 10,
+    marginTop + 12
+  );
 
-  // Vector architectural plan representation
+  // Vector architectural plan representation scaled into box (max 102 x 78 mm)
   const planOriginX = marginLeft + 18;
   const planOriginY = marginTop + 22;
-  const planW = 100;
-  const planH = 75;
+  const maxBoxW = 102;
+  const maxBoxH = 78;
+  const modelW = planData?.totalWidth || 12;
+  const modelL = planData?.totalLength || 10;
+  const scaleMmPerM = Math.min(maxBoxW / Math.max(1, modelW), maxBoxH / Math.max(1, modelL));
+  const planW = modelW * scaleMmPerM;
+  const planH = modelL * scaleMmPerM;
 
   // Outer walls (thick)
   doc.setDrawColor(15, 23, 42);
   doc.setLineWidth(0.8);
   doc.rect(planOriginX, planOriginY, planW, planH);
 
-  // Inner partition walls
-  doc.setLineWidth(0.4);
-  doc.line(planOriginX + 50, planOriginY, planOriginX + 50, planOriginY + planH); // Center divider
-  doc.line(planOriginX, planOriginY + 38, planOriginX + planW, planOriginY + 38); // Horizontal divider
+  // Room boundaries & labels
+  const realRooms = planData?.rooms?.length
+    ? planData.rooms
+    : [
+        { id: 'r1', name: 'Гостиная', x: 0, y: 0, width: 6, height: 5, area: 28.5 },
+        { id: 'r2', name: 'Кухня-столовая', x: 6, y: 0, width: 6, height: 5, area: 18.2 },
+        { id: 'r3', name: 'Спальня 1', x: 0, y: 5, width: 6, height: 5, area: 16.4 },
+        { id: 'r4', name: 'Холл и с/у', x: 6, y: 5, width: 6, height: 5, area: 12.0 },
+      ];
+
+  doc.setLineWidth(0.35);
+  realRooms.forEach((rm, idx) => {
+    const rx = planOriginX + rm.x * scaleMmPerM;
+    const ry = planOriginY + rm.y * scaleMmPerM;
+    const rw = rm.width * scaleMmPerM;
+    const rh = rm.height * scaleMmPerM;
+    doc.rect(rx, ry, rw, rh);
+    doc.setFontSize(6.5);
+    doc.text(`${idx + 1}. ${rm.name.slice(0, 18)}`, rx + rw / 2, ry + rh / 2 - 1, { align: 'center' });
+    doc.text(`${rm.area.toFixed(1)} м²`, rx + rw / 2, ry + rh / 2 + 2.5, { align: 'center' });
+  });
+
+  // Openings (windows/doors)
+  if (planData?.openings) {
+    planData.openings.forEach((op) => {
+      const ox = planOriginX + op.x * scaleMmPerM;
+      const oy = planOriginY + op.y * scaleMmPerM;
+      const ow = op.width * scaleMmPerM;
+      doc.setDrawColor(op.type === 'door' ? 180 : 2, op.type === 'door' ? 83 : 132, op.type === 'door' ? 9 : 199);
+      doc.setLineWidth(0.6);
+      if (op.orientation === 'horizontal') {
+        doc.line(ox, oy, ox + ow, oy);
+      } else {
+        doc.line(ox, oy, ox, oy + ow);
+      }
+    });
+  }
 
   // Dimension lines & Axis bubbles
   doc.setDrawColor(100, 116, 139);
   doc.setLineWidth(0.2);
 
-  // Axis 1, 2, 3 (Bottom)
   const drawAxisBubble = (x: number, y: number, label: string) => {
-    doc.circle(x, y, 3);
-    doc.setFontSize(6.5);
-    doc.text(label, x - 1.2, y + 1.2);
+    doc.circle(x, y, 2.8);
+    doc.setFontSize(6);
+    doc.text(label, x - 1.1, y + 1.1);
   };
 
-  drawAxisBubble(planOriginX, planOriginY + planH + 12, '1');
-  drawAxisBubble(planOriginX + 50, planOriginY + planH + 12, '2');
-  drawAxisBubble(planOriginX + planW, planOriginY + planH + 12, '3');
+  const axesX = planData?.axesX?.length
+    ? planData.axesX
+    : [
+        { label: '1', position: 0, orientation: 'x' as const },
+        { label: '2', position: modelW / 2, orientation: 'x' as const },
+        { label: '3', position: modelW, orientation: 'x' as const },
+      ];
+  axesX.slice(0, 5).forEach((ax) => {
+    const x = planOriginX + ax.position * scaleMmPerM;
+    doc.line(x, planOriginY + planH + 2, x, planOriginY + planH + 8);
+    drawAxisBubble(x, planOriginY + planH + 11, ax.label);
+  });
+  doc.line(planOriginX, planOriginY + planH + 5, planOriginX + planW, planOriginY + planH + 5);
 
-  doc.line(planOriginX, planOriginY + planH + 2, planOriginX, planOriginY + planH + 9);
-  doc.line(planOriginX + 50, planOriginY + planH + 2, planOriginX + 50, planOriginY + planH + 9);
-  doc.line(planOriginX + planW, planOriginY + planH + 2, planOriginX + planW, planOriginY + planH + 9);
-  doc.line(planOriginX, planOriginY + planH + 6, planOriginX + planW, planOriginY + planH + 6);
-
-  // Axis А, Б (Left)
-  drawAxisBubble(planOriginX - 12, planOriginY + planH, 'А');
-  drawAxisBubble(planOriginX - 12, planOriginY, 'Б');
-  doc.line(planOriginX - 2, planOriginY + planH, planOriginX - 9, planOriginY + planH);
-  doc.line(planOriginX - 2, planOriginY, planOriginX - 9, planOriginY);
-  doc.line(planOriginX - 6, planOriginY, planOriginX - 6, planOriginY + planH);
-
-  // Room Numbers & Labels on Plan
-  doc.setFontSize(8);
-  doc.text('1. Гостиная (28.5 м²)', planOriginX + 8, planOriginY + 20);
-  doc.text('2. Кухня-столовая (18.2 м²)', planOriginX + 56, planOriginY + 20);
-  doc.text('3. Спальня 1 (16.4 м²)', planOriginX + 8, planOriginY + 55);
-  doc.text('4. Холл и с/у (12.0 м²)', planOriginX + 56, planOriginY + 55);
+  const axesY = planData?.axesY?.length
+    ? planData.axesY
+    : [
+        { label: 'А', position: 0, orientation: 'y' as const },
+        { label: 'Б', position: modelL, orientation: 'y' as const },
+      ];
+  axesY.slice(0, 5).forEach((ay) => {
+    const y = planOriginY + ay.position * scaleMmPerM;
+    doc.line(planOriginX - 2, y, planOriginX - 8, y);
+    drawAxisBubble(planOriginX - 11, y, ay.label);
+  });
+  doc.line(planOriginX - 5, planOriginY, planOriginX - 5, planOriginY + planH);
 
   // Right Side: Explication Table
   const explX = marginLeft + 130;
   const explY = marginTop + 14;
+  doc.setDrawColor(30, 41, 59);
+  doc.setTextColor(15, 23, 42);
   doc.setFontSize(9);
   doc.text('ЭКСПЛИКАЦИЯ ПОМЕЩЕНИЙ', explX, explY);
 
-  doc.setDrawColor(30, 41, 59);
+  const rowCount = Math.min(6, realRooms.length);
+  const tableH = 10 + rowCount * 5.8;
   doc.setLineWidth(0.25);
-  doc.rect(explX, explY + 3, 130, 42);
-  doc.line(explX + 10, explY + 3, explX + 10, explY + 45);
-  doc.line(explX + 80, explY + 3, explX + 80, explY + 45);
-  doc.line(explX + 105, explY + 3, explX + 105, explY + 45);
+  doc.rect(explX, explY + 3, 130, tableH);
+  doc.line(explX + 10, explY + 3, explX + 10, explY + 3 + tableH);
+  doc.line(explX + 80, explY + 3, explX + 80, explY + 3 + tableH);
+  doc.line(explX + 105, explY + 3, explX + 105, explY + 3 + tableH);
   doc.line(explX, explY + 9, explX + 130, explY + 9);
 
   doc.setFontSize(6.5);
   doc.text('№', explX + 3, explY + 7);
   doc.text('Наименование помещения', explX + 14, explY + 7);
   doc.text('Площадь, м²', explX + 82, explY + 7);
-  doc.text('Категория', explX + 108, explY + 7);
+  doc.text('Размеры', explX + 108, explY + 7);
 
-  const roomsList = [
-    { n: '1', title: 'Гостиная / Common Living', area: '28.50', cat: 'Жилая' },
-    { n: '2', title: 'Кухня-столовая / Kitchen', area: '18.20', cat: 'Вспом.' },
-    { n: '3', title: 'Спальня мастер / Bedroom', area: '16.40', cat: 'Жилая' },
-    { n: '4', title: 'Холл-прихожая / Corridor', area: '7.80', cat: 'Вспом.' },
-    { n: '5', title: 'Санузел совмещенный', area: '4.20', cat: 'Вспом.' },
-  ];
-
-  roomsList.forEach((rm, i) => {
-    const rowY = explY + 15 + i * 5.8;
-    doc.text(rm.n, explX + 4, rowY);
-    doc.text(rm.title, explX + 13, rowY);
-    doc.text(rm.area, explX + 86, rowY);
-    doc.text(rm.cat, explX + 110, rowY);
-    if (i < 4) doc.line(explX, rowY + 2, explX + 130, rowY + 2);
+  realRooms.slice(0, 6).forEach((rm, i) => {
+    const rowY = explY + 14 + i * 5.8;
+    doc.text(String(i + 1), explX + 4, rowY);
+    doc.text(rm.name.slice(0, 32), explX + 13, rowY);
+    doc.text(rm.area.toFixed(2), explX + 86, rowY);
+    doc.text(`${rm.width}×${rm.height}`, explX + 108, rowY);
+    if (i < rowCount - 1) doc.line(explX, rowY + 2, explX + 130, rowY + 2);
   });
 
   // ==========================================

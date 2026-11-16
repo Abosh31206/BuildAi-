@@ -1,24 +1,41 @@
 import React, { useState } from 'react';
-import { Send, Bot, Sparkles, BookOpen, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Send, Bot, Sparkles, BookOpen, CheckCircle2, AlertTriangle, Quote, Info } from 'lucide-react';
 import { KZ_NORMATIVES_REGISTRY } from '../data/kzNormativesRegistry';
+import { useStandards } from '../../standards/store/StandardsContext';
+
+interface AiSourceLink {
+  code: string;
+  clause: string;
+  pageNumber: number;
+  revision?: string;
+  status?: string;
+}
+
+interface AiMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  citation?: string;
+  plainExplanation?: string;
+  hasVerifiedFullText?: boolean;
+  sources?: AiSourceLink[];
+}
 
 interface AiNormativeAssistantProps {
   language: 'ru' | 'kk';
-  onOpenDoc: (docCode: string) => void;
+  onOpenDoc: (docCode: string, pageNumber?: number) => void;
 }
 
 export const AiNormativeAssistant: React.FC<AiNormativeAssistantProps> = ({ language, onOpenDoc }) => {
+  const { searchFullTexts, openDocumentByCode } = useStandards();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState<
-    { role: 'user' | 'assistant'; text: string; sources?: { code: string; clause: string }[] }[]
-  >([
+  const [messages, setMessages] = useState<AiMessage[]>([
     {
       role: 'assistant',
       text:
         language === 'kk'
-          ? 'Сәлеметсіз бе! Мен Қазақстанның құрылыс нормалары (ҚР ЕЖ, ҚР ҚН, МЕМСТ) бойынша инженерлік кеңесшімін. Бетонның қорғаныс қабаты, іргетастың қату тереңдігі немесе сейсмикалық талаптар бойынша сұрақ қойыңыз.'
-          : 'Здравствуйте! Я инженерный AI-консультант по строительным нормативам Казахстана (СП РК, СН РК, ГОСТ). Задайте вопрос по защитным слоям бетона, глубине промерзания, теплотехнике или сейсмике.',
+          ? 'Сәлеметсіз бе! Мен Қазақстанның құрылыс нормалары (ҚР ЕЖ, ҚР ҚН, МЕМСТ) бойынша инженерлік кеңесшімін. Кітапханаға жүктелген толық PDF/DOCX құжаттар мен тізілім бойынша дәл бетке сілтеме беремін.'
+          : 'Здравствуйте! Я инженерный AI-консультант по нормативам РК (СП РК, СН РК, ГОСТ). Я анализирую полные тексты документов из Библиотеки нормативов, отделяю точную цитату от пояснения и открываю нужную страницу документа.',
     },
   ]);
 
@@ -29,153 +46,228 @@ export const AiNormativeAssistant: React.FC<AiNormativeAssistantProps> = ({ lang
     'Толщина растворных швов кирпичной кладки',
   ];
 
+  const handleOpenSourcePage = (src: AiSourceLink) => {
+    const openedFromLibrary = openDocumentByCode(src.code, src.pageNumber || 1);
+    if (!openedFromLibrary) {
+      onOpenDoc(src.code, src.pageNumber || 1);
+    }
+  };
+
   const handleSend = async (textToSend?: string) => {
     const q = textToSend || query;
     if (!q.trim()) return;
 
-    const userMsg = { role: 'user' as const, text: q };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, { role: 'user', text: q }]);
     setQuery('');
     setLoading(true);
 
+    // 1. Retrieve exact matching pages from uploaded Standards Library + Registry
+    const matchedChunks = searchFullTexts(q);
+
     try {
-      // 1. Try server-side endpoint first
       const res = await fetch('/api/ai/normative-query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q, language }),
+        body: JSON.stringify({
+          query: q,
+          language,
+          matchedChunks: matchedChunks.map((m) => ({
+            documentNumber: m.documentNumber,
+            officialTitle: m.officialTitle,
+            revision: m.revision,
+            status: m.status,
+            pageNumber: m.pageNumber,
+            excerpt: m.excerpt,
+          })),
+        }),
       });
 
       if (res.ok) {
         const data = await res.json();
+        const fallbackSources: AiSourceLink[] = matchedChunks.slice(0, 3).map((m) => ({
+          code: m.documentNumber,
+          clause: `стр. ${m.pageNumber}`,
+          pageNumber: m.pageNumber,
+          revision: m.revision,
+          status: m.status,
+        }));
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            text: data.answer,
-            sources: data.sources || [],
+            text: data.answer || data.plainExplanation || '',
+            citation: data.citation || undefined,
+            plainExplanation: data.plainExplanation || undefined,
+            hasVerifiedFullText: Boolean(data.hasVerifiedFullText || matchedChunks.length > 0),
+            sources:
+              Array.isArray(data.sources) && data.sources.length > 0 ? data.sources : fallbackSources,
           },
         ]);
         setLoading(false);
         return;
       }
     } catch {
-      // Fallback to internal knowledge engine
+      // Fallback to local indexed search below
     }
 
-    // 2. High-precision built-in normative search engine
+    // 2. Deterministic offline/fallback search strictly grounded in available library or verified registry
     setTimeout(() => {
+      if (matchedChunks.length > 0) {
+        const top = matchedChunks[0];
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            text: `Найден релевантный фрагмент в документе ${top.documentNumber} (${top.revision}) на стр. ${top.pageNumber}.`,
+            citation: top.excerpt.slice(0, 600),
+            plainExplanation: `Документ имеет статус ${top.status}. Проверьте контекст на странице ${top.pageNumber} во встроенном просмотрщике.`,
+            hasVerifiedFullText: true,
+            sources: matchedChunks.slice(0, 3).map((m) => ({
+              code: m.documentNumber,
+              clause: `стр. ${m.pageNumber}`,
+              pageNumber: m.pageNumber,
+              revision: m.revision,
+              status: m.status,
+            })),
+          },
+        ]);
+        setLoading(false);
+        return;
+      }
+
       const qLower = q.toLowerCase();
       let matchedDoc = KZ_NORMATIVES_REGISTRY[0];
       let matchedClause = matchedDoc.keyClauses[0];
-      let answerText = '';
 
-      if (qLower.includes('защитн') || qLower.includes('слой') || qLower.includes('арматур')) {
-        matchedDoc = KZ_NORMATIVES_REGISTRY.find((d) => d.code === 'СП РК 5.03-107-2013')!;
-        matchedClause = matchedDoc.keyClauses.find((c) => c.clause.includes('5.2.11'))!;
-        answerText =
-          `Согласно **${matchedDoc.code}** (${matchedClause.clause} «${matchedClause.title}»):\n\n` +
-          `${matchedClause.content}\n\n` +
-          `• Для монолитных фундаментов при бетонной подготовке: **не менее 35 мм**.\n` +
-          `• При укладке бетона непосредственно на грунт: **не менее 70 мм**.\n` +
-          `• Для плит перекрытий в сухих помещениях: **не менее 20 мм**.`;
-      } else if (qLower.includes('промерз') || qLower.includes('глубин') || qLower.includes('климат')) {
-        matchedDoc = KZ_NORMATIVES_REGISTRY.find((d) => d.code === 'СП РК 5.01-102-2013')!;
-        matchedClause = matchedDoc.keyClauses[0];
-        answerText =
-          `В соответствии с **${matchedDoc.code}** (${matchedClause.clause}) и **СП РК 2.04-01-2017** «Строительная климатология»:\n\n` +
-          `Нормативная глубина сезонного промерзания грунта для суглинков и глин составляет:\n` +
-          `• **Астана:** 1.8 – 2.1 м (расчетная глубина заложения наружных фундаментов на пучинистых грунтах должна быть не менее глубины промерзания);\n` +
-          `• **Алматы:** 0.8 – 1.0 м;\n` +
-          `• **Караганда:** 1.9 – 2.1 м;\n` +
-          `• **Шымкент:** 0.5 – 0.7 м.`;
-      } else if (qLower.includes('сейсм') || qLower.includes('алмат') || qLower.includes('балл')) {
-        matchedDoc = KZ_NORMATIVES_REGISTRY.find((d) => d.code === 'СП РК 2.03-30-2017')!;
-        matchedClause = matchedDoc.keyClauses[0];
-        answerText =
-          `Согласно требованиям **${matchedDoc.code}** «Строительство в сейсмических зонах (районах) Республики Казахстан»:\n\n` +
-          `• Для районов сейсмичностью 7, 8 и 9 баллов (г. Алматы, Алматинская область) обязательным является устройство непрерывных монолитных антисейсмических поясов в уровнях всех перекрытий.\n` +
-          `• В несущих железобетонных конструкциях применяется арматура класса **А500С / А500СП** с нормируемой повышенной пластичностью.\n` +
-          `• Класс бетона несущих монолитных элементов должен быть не ниже **В25**.`;
-      } else if (qLower.includes('шов') || qLower.includes('кирпич') || qLower.includes('кладк')) {
-        matchedDoc = KZ_NORMATIVES_REGISTRY.find((d) => d.code === 'СП РК 5.02-102-2014')!;
-        matchedClause = matchedDoc.keyClauses[0];
-        answerText =
-          `Согласно **${matchedDoc.code}** (${matchedClause.clause}):\n\n` +
-          `• Номинальная толщина горизонтальных растворных швов кирпичной кладки составляет **12 мм** (допустимый диапазон 10–15 мм).\n` +
-          `• Толщина вертикальных швов составляет **10 мм** (допустимо 8–12 мм).\n` +
-          `• Армирование кладочными сетками (проволока Вр-I Ø3–5 мм) выполняется не реже чем через каждые 5 рядов кирпича.`;
-      } else {
-        answerText =
-          `По вашему запросу «${q}» проверена актуальная нормативная база Республики Казахстан.\n\n` +
-          `Основные требования регламентируются **СП РК 5.03-107-2013** («Несущие и ограждающие конструкции») и **СП РК 5.01-102-2013** («Основания зданий и сооружений»).\n` +
-          `Параметры должны соответствовать проектным расчетам и технологическим картам, утвержденным в РК.`;
+      for (const d of KZ_NORMATIVES_REGISTRY) {
+        const hit = d.keyClauses.find(
+          (c) =>
+            c.content.toLowerCase().includes(qLower) ||
+            c.title.toLowerCase().includes(qLower) ||
+            qLower.split(/\s+/).some((w) => w.length >= 4 && c.content.toLowerCase().includes(w))
+        );
+        if (hit) {
+          matchedDoc = d;
+          matchedClause = hit;
+          break;
+        }
+      }
+
+      const hasKeywordHit = qLower
+        .split(/\s+/)
+        .some((w) => w.length >= 4 && matchedClause.content.toLowerCase().includes(w));
+
+      if (!hasKeywordHit) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            text: `По запросу «${q}» полный текст соответствующего норматива не найден среди загруженных документов библиотеки.`,
+            plainExplanation:
+              'Чтобы Normative AI мог процитировать точный пункт и открыть конкретную страницу, загрузите полный PDF или DOCX документа в разделе «Нормативная библиотека → Управление библиотекой».',
+            hasVerifiedFullText: false,
+          },
+        ]);
+        setLoading(false);
+        return;
       }
 
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          text: answerText,
-          sources: [{ code: matchedDoc.code, clause: matchedClause.clause }],
+          text: `Найдена запись в верифицированном реестре РК: ${matchedDoc.code} (${matchedClause.clause}).`,
+          citation: matchedClause.content,
+          plainExplanation: `${matchedClause.title}. ${matchedClause.notes || ''}`,
+          hasVerifiedFullText: true,
+          sources: [
+            {
+              code: matchedDoc.code,
+              clause: matchedClause.clause,
+              pageNumber: 1,
+              status: matchedDoc.status,
+            },
+          ],
         },
       ]);
       setLoading(false);
-    }, 400);
+    }, 300);
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden flex flex-col h-[520px]">
-      {/* Header */}
+    <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden flex flex-col h-[560px]">
       <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded bg-blue-600 flex items-center justify-center text-white">
             <Bot className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider">
-              Normative AI · Казахстан
-            </h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider">Normative AI · RAG по Библиотеке РК</h3>
             <span className="text-[10px] text-blue-300 font-mono">
-              Верифицированная база СП РК, СН РК, ГОСТ
+              Поиск по полным текстам PDF/DOCX · Переход на точную страницу
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 text-[11px] text-slate-300 bg-slate-800 px-2.5 py-1 rounded border border-slate-700">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Только проверенные нормы</span>
+          <span>Без вымышленных норм</span>
         </div>
       </div>
 
-      {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
         {messages.map((m, idx) => (
-          <div
-            key={idx}
-            className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
-          >
+          <div key={idx} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
             <div
-              className={`max-w-[85%] rounded-lg p-3.5 text-xs leading-relaxed ${
+              className={`max-w-[90%] rounded-lg p-3.5 text-xs leading-relaxed space-y-2.5 ${
                 m.role === 'user'
                   ? 'bg-blue-900 text-white'
                   : 'bg-white border border-slate-200 text-slate-800 shadow-2xs'
               }`}
             >
+              {m.role === 'assistant' && m.hasVerifiedFullText === false && (
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>В базе отсутствует полный загруженный текст по данному вопросу</span>
+                </div>
+              )}
+
               <div className="whitespace-pre-line font-sans">{m.text}</div>
 
+              {m.citation && (
+                <div className="bg-slate-50 border-l-4 border-blue-700 p-2.5 rounded-r space-y-1">
+                  <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-blue-900">
+                    <Quote className="w-3 h-3" />
+                    <span>Точная выдержка из НТД</span>
+                  </div>
+                  <p className="text-[11px] text-slate-700 font-serif italic">{m.citation}</p>
+                </div>
+              )}
+
+              {m.plainExplanation && (
+                <div className="bg-emerald-50/50 border border-emerald-200/70 p-2.5 rounded space-y-1">
+                  <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-900">
+                    <Info className="w-3 h-3" />
+                    <span>Инженерное пояснение</span>
+                  </div>
+                  <p className="text-[11px] text-slate-700">{m.plainExplanation}</p>
+                </div>
+              )}
+
               {m.sources && m.sources.length > 0 && (
-                <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] text-slate-400 font-semibold">Источник:</span>
+                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-slate-400 font-semibold">Открыть в просмотрщике:</span>
                   {m.sources.map((s, sIdx) => (
                     <button
                       key={sIdx}
                       type="button"
-                      onClick={() => onOpenDoc(s.code)}
-                      className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition-colors"
+                      onClick={() => handleOpenSourcePage(s)}
+                      className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded transition-colors"
                     >
                       <BookOpen className="w-3 h-3" />
-                      <span>{s.code} ({s.clause})</span>
+                      <span>
+                        {s.code} · {s.clause} (стр. {s.pageNumber || 1})
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -185,14 +277,13 @@ export const AiNormativeAssistant: React.FC<AiNormativeAssistantProps> = ({ lang
         ))}
 
         {loading && (
-          <div className="flex items-center gap-2 text-xs text-slate-400 p-2">
+          <div className="flex items-center gap-2 text-xs text-slate-500 p-2">
             <Sparkles className="w-4 h-4 animate-spin text-blue-600" />
-            <span>Анализ нормативной базы РК...</span>
+            <span>Поиск по проиндексированным страницам нормативов...</span>
           </div>
         )}
       </div>
 
-      {/* Quick Prompts Bar */}
       <div className="p-2.5 bg-white border-t border-slate-200 overflow-x-auto flex gap-1.5">
         {quickPrompts.map((qp, i) => (
           <button
@@ -206,7 +297,6 @@ export const AiNormativeAssistant: React.FC<AiNormativeAssistantProps> = ({ lang
         ))}
       </div>
 
-      {/* Input Form */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -219,7 +309,7 @@ export const AiNormativeAssistant: React.FC<AiNormativeAssistantProps> = ({ lang
           placeholder={
             language === 'kk'
               ? 'Құрылыс нормалары бойынша сұрағыңызды жазыңыз...'
-              : 'Спросите о требованиях СП РК, СНиП, глубине промерзания, марке бетона...'
+              : 'Спросите по СП РК, СНиП, ГОСТ (поиск по загруженным PDF/DOCX)...'
           }
           value={query}
           onChange={(e) => setQuery(e.target.value)}

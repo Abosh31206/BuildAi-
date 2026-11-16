@@ -1,0 +1,274 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public profile metadata for a registered BuildAI KZ engineer.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["engineer"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "role", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII storage for user email and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 200
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "BuildingProjectDoc": {
+      "title": "BuildingProjectDoc",
+      "description": "Unified 2D CAD, 3D architectural model, calculation links, and SPDS sheet configuration for a user project.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "projectCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "city": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "stage": {
+          "type": "string",
+          "enum": ["АР", "КЖ", "АС", "ЭП"]
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "object",
+          "description": "Native nested map containing floors, walls, openings, rooms, roof, cad2d, layers, and linked standards."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "ownerId", "name", "projectCode", "city", "stage", "schemaVersion", "model", "createdAt", "updatedAt"]
+    },
+    "StandardsDocumentDoc": {
+      "title": "StandardsDocumentDoc",
+      "description": "Metadata, integrity verification, licensing rights, and outline of a normative document in the Construction Standards Library.",
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "documentType": {
+          "type": "string",
+          "enum": ["SP_RK", "SN_RK", "GOST", "ST_RK", "SNIP", "NTD"]
+        },
+        "documentNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "officialTitleRu": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "officialTitleKk": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "language": {
+          "type": "string",
+          "enum": ["ru", "kk", "both"]
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "documentStatus": {
+          "type": "string",
+          "enum": ["ACTIVE", "REPLACED", "CANCELLED", "UNCONFIRMED"]
+        },
+        "industryCategory": {
+          "type": "string",
+          "enum": ["ALL", "STRUCTURES", "SEISMIC", "FOUNDATIONS", "CLIMATE_THERMAL", "FINISHING", "FIRE_SAFETY", "ENGINEERING_NETS"]
+        },
+        "accessRights": {
+          "type": "string",
+          "enum": ["VIEW_AND_DOWNLOAD", "VIEW_ONLY", "OFFICIAL_LINK_ONLY"]
+        },
+        "processingStatus": {
+          "type": "string",
+          "enum": ["READY", "UPLOADING", "VALIDATING", "INDEXING_TEXT", "OCR_PROCESSING", "INCOMPLETE", "CORRUPTED"]
+        },
+        "fileFormat": {
+          "type": "string",
+          "enum": ["PDF", "DOCX", "NONE"]
+        },
+        "pageCount": {
+          "type": "integer"
+        },
+        "checksumSha256": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "fileUrl": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "fileStoragePath": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "sourceName": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "sourceUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "integrityReport": {
+          "type": "object"
+        },
+        "sections": {
+          "type": "array"
+        },
+        "clauses": {
+          "type": "array"
+        },
+        "lastVerifiedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["documentId", "ownerId", "documentType", "documentNumber", "officialTitleRu", "documentStatus", "industryCategory", "accessRights", "processingStatus", "fileFormat", "pageCount", "createdAt", "updatedAt"]
+    },
+    "StandardPageTextDoc": {
+      "title": "StandardPageTextDoc",
+      "description": "Extracted or OCR-recognized page text chunk for full-text search and Normative AI grounding.",
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "pageNumber": {
+          "type": "integer"
+        },
+        "rawText": {
+          "type": "string",
+          "maxLength": 50000
+        },
+        "ocrText": {
+          "type": "string",
+          "maxLength": 50000
+        },
+        "isScanned": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["documentId", "ownerId", "pageNumber", "rawText", "isScanned", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public user profile records keyed by Firebase Auth UID."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Private user PII such as email address, accessible strictly to the owner."
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/BuildingProjectDoc" },
+      "description": "User architectural/engineering projects containing unified 2D CAD, 3D building state, and linked calculations."
+    },
+    "/standards_documents/{documentId}": {
+      "schema": { "$ref": "#/entities/StandardsDocumentDoc" },
+      "description": "Construction standards registry (СП РК, СН РК, ГОСТ, СНиП, СТ РК, НТД)."
+    },
+    "/standards_documents/{documentId}/pages/{pageId}": {
+      "schema": { "$ref": "#/entities/StandardPageTextDoc" },
+      "description": "Per-page extracted/OCR text chunks belonging to a normative document."
+    }
+  }
+}

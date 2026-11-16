@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { ProjectAlbumData, ProjectMetadata } from '../types';
 import { generatePdfAlbum } from '../engine/pdfAlbumBuilder';
+import { useProject } from '../../project/store/ProjectContext';
+import { unifiedProjectToCadFloorPlan } from '../../project/engine/projectSync';
 
 interface ProjectAlbumModalProps {
   isOpen: boolean;
@@ -27,22 +29,25 @@ export const ProjectAlbumModal: React.FC<ProjectAlbumModalProps> = ({
   onClose,
   language,
 }) => {
+  const { project, activeFloorIndex } = useProject();
+  const activePlan = unifiedProjectToCadFloorPlan(project, activeFloorIndex);
+
   const [activeSheet, setActiveSheet] = useState<number>(1);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Editable Project Metadata
+  // Editable Project Metadata synced initially with UnifiedBuildingProject
   const [meta, setMeta] = useState<ProjectMetadata>({
-    projectName: 'Индивидуальный двухэтажный жилой дом 180 м²',
-    projectCode: 'KZ-2025/АР-084',
+    projectName: project.name || 'Индивидуальный двухэтажный жилой дом 180 м²',
+    projectCode: project.projectCode || 'KZ-2025/АР-084',
     objectAddress: 'мкр. Уркер, уч. 45/2',
-    city: 'Астана',
+    city: project.city || 'Астана',
     clientName: 'Ахметов Б. К.',
     contractor: 'ТОО "Сарыарка Констракшн"',
-    generalEngineerGip: 'Касымов Е. С.',
-    leadArchitect: 'Смагулова А. Т.',
-    stage: 'АР',
-    year: 2025,
-    dateStr: '11.2025',
+    generalEngineerGip: project.cad2d.paperSpace.titleBlock.gip || 'Касымов Е. С.',
+    leadArchitect: project.cad2d.paperSpace.titleBlock.developer || 'Смагулова А. Т.',
+    stage: project.stage || 'АР',
+    year: new Date().getFullYear(),
+    dateStr: project.cad2d.paperSpace.titleBlock.dateStr || '11.2025',
   });
 
   const kzCities = ['Астана', 'Алматы', 'Шымкент', 'Караганда', 'Актобе', 'Павлодар', 'Усть-Каменогорск'];
@@ -165,6 +170,7 @@ export const ProjectAlbumModal: React.FC<ProjectAlbumModalProps> = ({
         metadata: meta,
         materials,
         calculations,
+        activePlan,
       };
       const doc = generatePdfAlbum(albumData, language);
       doc.save(`${meta.projectCode.replace(/[/\\?%*:|"<>]/g, '-')}-Альбом_ПД.pdf`);
@@ -544,18 +550,26 @@ export const ProjectAlbumModal: React.FC<ProjectAlbumModalProps> = ({
                     </div>
 
                     <div className="grid grid-cols-12 gap-3 items-center">
-                      <div className="col-span-7 border-2 border-slate-800 rounded bg-slate-50 p-3 h-44 relative flex items-center justify-center">
-                        <div className="w-full h-full border border-dashed border-slate-400 relative">
-                          {/* Inner dividing wall */}
-                          <div className="absolute top-0 bottom-0 left-1/2 border-l-2 border-slate-800" />
-                          <div className="absolute left-0 right-0 top-1/2 border-t-2 border-slate-800" />
-
-                          {/* Room numbers */}
-                          <span className="absolute top-2 left-2 text-[9px] font-bold text-slate-700">1. Гостиная (28.5 м²)</span>
-                          <span className="absolute top-2 right-2 text-[9px] font-bold text-slate-700">2. Кухня (18.2 м²)</span>
-                          <span className="absolute bottom-2 left-2 text-[9px] font-bold text-slate-700">3. Спальня (16.4 м²)</span>
-                          <span className="absolute bottom-2 right-2 text-[9px] font-bold text-slate-700">4. Холл/Санузел (12.0 м²)</span>
-                        </div>
+                      <div className="col-span-7 border-2 border-slate-800 rounded bg-slate-50 p-3 h-44 relative overflow-hidden">
+                        {activePlan.rooms.slice(0, 6).map((rm, idx) => (
+                          <div
+                            key={rm.id}
+                            style={{
+                              left: `${(rm.x / Math.max(1, activePlan.totalWidth)) * 100}%`,
+                              top: `${(rm.y / Math.max(1, activePlan.totalLength)) * 100}%`,
+                              width: `${(rm.width / Math.max(1, activePlan.totalWidth)) * 100}%`,
+                              height: `${(rm.height / Math.max(1, activePlan.totalLength)) * 100}%`,
+                            }}
+                            className="absolute border border-slate-700 flex flex-col items-center justify-center text-center p-0.5 bg-white/70"
+                          >
+                            <span className="text-[8px] font-bold text-slate-800 leading-tight truncate max-w-full">
+                              {idx + 1}. {rm.name}
+                            </span>
+                            <span className="text-[8px] font-mono text-slate-500">
+                              {rm.area.toFixed(1)} м²
+                            </span>
+                          </div>
+                        ))}
                       </div>
 
                       {/* Explication */}
@@ -570,30 +584,17 @@ export const ProjectAlbumModal: React.FC<ProjectAlbumModalProps> = ({
                             </tr>
                           </thead>
                           <tbody>
-                            <tr className="border-b border-slate-200">
-                              <td className="p-0.5 border-r border-slate-200 text-center">1</td>
-                              <td className="p-0.5 border-r border-slate-200">Гостиная</td>
-                              <td className="p-0.5 font-bold">28.50 м²</td>
-                            </tr>
-                            <tr className="border-b border-slate-200">
-                              <td className="p-0.5 border-r border-slate-200 text-center">2</td>
-                              <td className="p-0.5 border-r border-slate-200">Кухня-столовая</td>
-                              <td className="p-0.5 font-bold">18.20 м²</td>
-                            </tr>
-                            <tr className="border-b border-slate-200">
-                              <td className="p-0.5 border-r border-slate-200 text-center">3</td>
-                              <td className="p-0.5 border-r border-slate-200">Спальня</td>
-                              <td className="p-0.5 font-bold">16.40 м²</td>
-                            </tr>
-                            <tr>
-                              <td className="p-0.5 border-r border-slate-200 text-center">4</td>
-                              <td className="p-0.5 border-r border-slate-200">Холл и с/у</td>
-                              <td className="p-0.5 font-bold">12.00 м²</td>
-                            </tr>
+                            {activePlan.rooms.slice(0, 5).map((rm, idx) => (
+                              <tr key={rm.id} className="border-b border-slate-200">
+                                <td className="p-0.5 border-r border-slate-200 text-center">{idx + 1}</td>
+                                <td className="p-0.5 border-r border-slate-200 truncate max-w-[110px]">{rm.name}</td>
+                                <td className="p-0.5 font-bold font-mono">{rm.area.toFixed(1)} м²</td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                         <div className="mt-1 font-bold text-slate-900 text-right">
-                          Общая площадь: 75.10 м²
+                          Общая площадь: {activePlan.rooms.reduce((s, r) => s + r.area, 0).toFixed(1)} м²
                         </div>
                       </div>
                     </div>

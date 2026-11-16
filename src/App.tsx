@@ -5,6 +5,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { LanguageProvider, useTranslation } from './locales/LanguageContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { FirebaseProvider } from './components/FirebaseProvider';
+import { ProjectProvider } from './modules/project/store/ProjectContext';
+import { StandardsProvider, useStandards } from './modules/standards/store/StandardsContext';
 import { Header, AppModuleId } from './components/Header';
 import { HomePage } from './pages/HomePage';
 import { AboutSection } from './components/AboutSection';
@@ -22,12 +26,15 @@ import {
 // Universal Modules
 import { NormativeModule } from './modules/normative/NormativeModule';
 import { StandardsLibraryModule } from './modules/standards/StandardsLibraryModule';
+import { EmbeddedPdfViewer } from './modules/standards/components/PdfViewer/EmbeddedPdfViewer';
 import { CadModule } from './modules/cad/CadModule';
 import { Building3dModule } from './modules/building3d/Building3dModule';
 import { ProjectAlbumModal } from './modules/pdf/components/ProjectAlbumModal';
 
 function AppMain() {
   const { language } = useTranslation();
+  const { activeViewerDoc, initialViewerPage, initialViewerQuery, closeViewer } = useStandards();
+
   const [activeModule, setActiveModule] = useState<AppModuleId>('calculators');
   const [history, setHistory] = useState<CalculationHistoryItem[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -35,7 +42,6 @@ function AppMain() {
   const [printModalItem, setPrintModalItem] = useState<CalculationHistoryItem | null>(null);
   const [restoredItem, setRestoredItem] = useState<CalculationHistoryItem | null>(null);
 
-  // Load history from localStorage on initial render
   useEffect(() => {
     setHistory(getHistory());
   }, []);
@@ -101,13 +107,13 @@ function AppMain() {
         )}
 
         {activeModule === 'cad' && (
-          <div className="py-8">
-            <CadModule />
+          <div className="py-5">
+            <CadModule onOpenPdfExport={() => setIsProjectAlbumOpen(true)} />
           </div>
         )}
 
         {activeModule === 'building3d' && (
-          <div className="py-8">
+          <div className="py-6">
             <Building3dModule
               onTransferToCad={() => setActiveModule('cad')}
               onTransferToCalculators={() => setActiveModule('calculators')}
@@ -143,14 +149,33 @@ function AppMain() {
         onClose={() => setIsProjectAlbumOpen(false)}
         language={language}
       />
+
+      {/* Global Embedded Normative PDF / DOCX Viewer (opened from Library OR Normative AI citations) */}
+      {activeViewerDoc && (
+        <EmbeddedPdfViewer
+          document={activeViewerDoc}
+          initialPage={initialViewerPage}
+          initialQuery={initialViewerQuery}
+          onClose={closeViewer}
+          language={language}
+        />
+      )}
     </div>
   );
 }
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <AppMain />
-    </LanguageProvider>
+    <ErrorBoundary>
+      <FirebaseProvider>
+        <ProjectProvider>
+          <StandardsProvider>
+            <LanguageProvider>
+              <AppMain />
+            </LanguageProvider>
+          </StandardsProvider>
+        </ProjectProvider>
+      </FirebaseProvider>
+    </ErrorBoundary>
   );
 }

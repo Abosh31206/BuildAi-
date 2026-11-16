@@ -33,10 +33,13 @@ export interface EngineeringCalculationSummaryItem {
   notes: string;
 }
 
+import { CadFloorPlan } from '../cad/types';
+
 export interface ProjectAlbumData {
   metadata: ProjectMetadata;
   materials: MaterialSpecItem[];
   calculations: EngineeringCalculationSummaryItem[];
   cadDrawingTitle?: string;
   cadScale?: string;
+  activePlan?: CadFloorPlan;
 }

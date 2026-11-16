@@ -1,0 +1,255 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Startup connectivity check document
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Hardened Global Helpers
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'abomyn06@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validators
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'role', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == userId && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role is string && data.role == 'engineer'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivate(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'updatedAt'])
+        && data.uid is string && data.uid == userId && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBuildingProject(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'name', 'projectCode', 'city', 'stage', 'schemaVersion', 'model', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'name', 'projectCode', 'city', 'stage', 'schemaVersion', 'model', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 200
+        && data.projectCode is string && data.projectCode.size() >= 1 && data.projectCode.size() <= 64
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && data.stage is string && data.stage in ['АР', 'КЖ', 'АС', 'ЭП']
+        && data.schemaVersion is int && data.schemaVersion >= 1 && data.schemaVersion <= 100
+        && data.model is map
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStandardsDocument(data) {
+      return data.keys().hasAll([
+          'documentId', 'ownerId', 'documentType', 'documentNumber',
+          'officialTitleRu', 'documentStatus', 'industryCategory',
+          'accessRights', 'processingStatus', 'fileFormat', 'pageCount',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'documentId', 'ownerId', 'documentType', 'documentNumber',
+          'officialTitleRu', 'officialTitleKk', 'language', 'revision',
+          'publicationDate', 'effectiveDate', 'documentStatus', 'replacedBy',
+          'industryCategory', 'sourceName', 'sourceUrl', 'fileUrl',
+          'fileStoragePath', 'fileFormat', 'fileSizeBytes', 'checksumSha256',
+          'accessRights', 'processingStatus', 'integrityReport', 'pageCount',
+          'sections', 'clauses', 'lastVerifiedAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.documentId)
+        && isValidId(data.ownerId)
+        && data.documentType in ['SP_RK', 'SN_RK', 'GOST', 'ST_RK', 'SNIP', 'NTD']
+        && data.documentNumber is string && data.documentNumber.size() >= 1 && data.documentNumber.size() <= 120
+        && data.officialTitleRu is string && data.officialTitleRu.size() >= 1 && data.officialTitleRu.size() <= 400
+        && (!data.keys().hasAny(['officialTitleKk']) || (data.officialTitleKk is string && data.officialTitleKk.size() <= 400))
+        && (!data.keys().hasAny(['language']) || data.language in ['ru', 'kk', 'both'])
+        && (!data.keys().hasAny(['revision']) || (data.revision is string && data.revision.size() <= 120))
+        && data.documentStatus in ['ACTIVE', 'REPLACED', 'CANCELLED', 'UNCONFIRMED']
+        && data.industryCategory in ['ALL', 'STRUCTURES', 'SEISMIC', 'FOUNDATIONS', 'CLIMATE_THERMAL', 'FINISHING', 'FIRE_SAFETY', 'ENGINEERING_NETS']
+        && data.accessRights in ['VIEW_AND_DOWNLOAD', 'VIEW_ONLY', 'OFFICIAL_LINK_ONLY']
+        && data.processingStatus in ['READY', 'UPLOADING', 'VALIDATING', 'INDEXING_TEXT', 'OCR_PROCESSING', 'INCOMPLETE', 'CORRUPTED']
+        && data.fileFormat in ['PDF', 'DOCX', 'NONE']
+        && data.pageCount is int && data.pageCount >= 0 && data.pageCount <= 5000
+        && (!data.keys().hasAny(['checksumSha256']) || (data.checksumSha256 is string && data.checksumSha256.size() <= 64))
+        && (!data.keys().hasAny(['fileUrl']) || (data.fileUrl is string && data.fileUrl.size() <= 1000))
+        && (!data.keys().hasAny(['fileStoragePath']) || (data.fileStoragePath is string && data.fileStoragePath.size() <= 300))
+        && (!data.keys().hasAny(['sourceName']) || (data.sourceName is string && data.sourceName.size() <= 200))
+        && (!data.keys().hasAny(['sourceUrl']) || (data.sourceUrl is string && data.sourceUrl.size() <= 500))
+        && (!data.keys().hasAny(['sections']) || (data.sections is list && data.sections.size() <= 200))
+        && (!data.keys().hasAny(['clauses']) || (data.clauses is list && data.clauses.size() <= 200))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStandardPageText(data, docId) {
+      return data.keys().hasAll(['documentId', 'ownerId', 'pageNumber', 'rawText', 'isScanned', 'createdAt'])
+        && data.keys().hasOnly(['documentId', 'ownerId', 'pageNumber', 'rawText', 'ocrText', 'isScanned', 'createdAt'])
+        && isValidId(data.documentId) && data.documentId == docId
+        && isValidId(data.ownerId)
+        && data.pageNumber is int && data.pageNumber >= 1 && data.pageNumber <= 5000
+        && data.rawText is string && data.rawText.size() <= 50000
+        && (!data.keys().hasAny(['ocrText']) || (data.ocrText is string && data.ocrText.size() <= 50000))
+        && data.isScanned is bool
+        && data.createdAt is timestamp;
+    }
+
+    // 1. Users Collection (Public non-PII + Private PII Subcollection)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().role == existing().role
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(userId);
+
+      match /private/{docId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(docId) && (request.auth.uid == userId || isAdmin());
+        allow create: if isVerifiedUser()
+          && isValidId(userId)
+          && isValidId(docId)
+          && request.auth.uid == userId
+          && isValidUserPrivate(incoming(), userId)
+          && incoming().updatedAt == request.time;
+        allow update: if isVerifiedUser()
+          && isValidId(userId)
+          && isValidId(docId)
+          && request.auth.uid == userId
+          && isValidUserPrivate(incoming(), userId)
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']);
+        allow delete: if isVerifiedUser() && isValidId(userId) && isValidId(docId) && (request.auth.uid == userId || isAdmin());
+      }
+    }
+
+    // 2. Unified Building Projects Collection (Strictly private to owner)
+    match /projects/{projectId} {
+      allow get: if isSignedIn() && isValidId(projectId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(projectId)
+        && isValidBuildingProject(incoming())
+        && incoming().id == projectId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(projectId)
+        && (existing().ownerId == request.auth.uid || isAdmin())
+        && isValidBuildingProject(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'projectCode', 'city', 'stage', 'schemaVersion', 'model', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(projectId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 3. Normative Standards Library
+    match /standards_documents/{documentId} {
+      allow get: if isValidId(documentId);
+      allow list: if true;
+      allow create: if isVerifiedUser()
+        && isValidId(documentId)
+        && isValidStandardsDocument(incoming())
+        && incoming().documentId == documentId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(documentId)
+        && (existing().ownerId == request.auth.uid || isAdmin())
+        && isValidStandardsDocument(incoming())
+        && incoming().documentId == existing().documentId
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'documentType', 'documentNumber', 'language', 'publicationDate', 'effectiveDate',
+          'officialTitleRu', 'officialTitleKk', 'documentStatus', 'revision',
+          'replacedBy', 'industryCategory', 'sourceName', 'sourceUrl',
+          'fileUrl', 'fileStoragePath', 'fileFormat', 'fileSizeBytes',
+          'checksumSha256', 'accessRights', 'processingStatus', 'integrityReport',
+          'pageCount', 'sections', 'clauses', 'lastVerifiedAt', 'updatedAt'
+        ]);
+      allow delete: if isVerifiedUser() && isValidId(documentId) && (existing().ownerId == request.auth.uid || isAdmin());
+
+      match /pages/{pageId} {
+        allow get: if isValidId(documentId) && isValidId(pageId);
+        allow list: if isValidId(documentId);
+        allow create: if isVerifiedUser()
+          && isValidId(documentId)
+          && isValidId(pageId)
+          && isValidStandardPageText(incoming(), documentId)
+          && incoming().ownerId == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/standards_documents/$(documentId))
+          && (
+            get(/databases/$(database)/documents/standards_documents/$(documentId)).data.ownerId == request.auth.uid
+            || isAdmin()
+          );
+        allow update: if isVerifiedUser()
+          && isValidId(documentId)
+          && isValidId(pageId)
+          && (existing().ownerId == request.auth.uid || isAdmin())
+          && isValidStandardPageText(incoming(), documentId)
+          && incoming().documentId == existing().documentId
+          && incoming().ownerId == existing().ownerId
+          && incoming().pageNumber == existing().pageNumber
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['rawText', 'ocrText', 'isScanned']);
+        allow delete: if isVerifiedUser() && isValidId(documentId) && isValidId(pageId) && (existing().ownerId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // Admins Registry
+    match /admins/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && request.auth.uid == uid;
+    }
+  }
+}
